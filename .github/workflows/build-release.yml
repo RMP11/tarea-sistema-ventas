@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - develop
+      - ci-dia4
   workflow_dispatch:
     inputs:
       version:
@@ -61,7 +62,7 @@ jobs:
           echo "prerelease=${PRERELEASE}" >> $GITHUB_OUTPUT
           echo "timestamp=${TIMESTAMP}" >> $GITHUB_OUTPUT
 
-          echo "📦 Building release: ${RELEASE_NAME}"
+          echo "Building release: ${RELEASE_NAME}"
 
       # Setup PHP
       - name: Setup PHP ${{ env.PHP_VERSION }}
@@ -84,7 +85,7 @@ jobs:
       - name: Install PHP Dependencies (Production)
         run: |
           composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
-          echo "✅ Composer dependencies installed (production mode)"
+          echo "Composer dependencies installed (production mode)"
 
       # Setup Node.js
       - name: Setup Node.js ${{ env.NODE_VERSION }}
@@ -97,13 +98,13 @@ jobs:
       - name: Install Node Dependencies
         run: |
           npm ci
-          echo "✅ NPM dependencies installed"
+          echo "NPM dependencies installed"
 
       # Build frontend
       - name: Build Frontend (Vite)
         run: |
           npm run build
-          echo "✅ Frontend assets built"
+          echo "Frontend assets built"
 
       # Create .env for artisan commands
       - name: Setup Environment for Optimization
@@ -117,7 +118,7 @@ jobs:
           php artisan config:cache
           php artisan route:cache
           php artisan view:cache
-          echo "✅ Laravel optimized"
+          echo "Laravel optimized"
 
       # Create version file
       - name: Create Version File
@@ -129,7 +130,7 @@ jobs:
             "branch": "${{ github.ref_name }}",
             "built_at": "'$(date -Iseconds)'"
           }' > public/version.json
-          echo "✅ Version file created"
+          echo "Version file created"
 
       # Create release artifact
       - name: Create Release Artifact
@@ -163,7 +164,7 @@ jobs:
           sha256sum "${ARTIFACT_NAME}.tar.gz" > "${ARTIFACT_NAME}.tar.gz.sha256"
 
           echo "artifact_name=${ARTIFACT_NAME}" >> $GITHUB_ENV
-          echo "✅ Artifact created: ${ARTIFACT_NAME}.tar.gz"
+          echo "Artifact created: ${ARTIFACT_NAME}.tar.gz"
           ls -lh "${ARTIFACT_NAME}.tar.gz"
 
       # Upload artifact
@@ -194,7 +195,7 @@ jobs:
       # Summary
       - name: Build Summary
         run: |
-          echo "## 📦 Build & Release Summary" >> $GITHUB_STEP_SUMMARY
+          echo "## Build & Release Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
@@ -203,4 +204,4 @@ jobs:
           echo "| **Commit** | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| **Artifact** | \`${{ env.artifact_name }}.tar.gz\` |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "✅ Release created successfully!" >> $GITHUB_STEP_SUMMARY
+          echo "Release created successfully!" >> $GITHUB_STEP_SUMMARY
