@@ -177,18 +177,34 @@ jobs:
           ln -sfn "$(pwd)/shared/storage" "${RELEASE_DIR}/storage"
           ln -sfn "$(pwd)/shared/.env" "${RELEASE_DIR}/.env"
 
+          # Ensure storage directories exist with proper permissions
+          echo "📁 Ensuring storage structure exists"
+          mkdir -p shared/storage/app/public
+          mkdir -p shared/storage/framework/cache/data
+          mkdir -p shared/storage/framework/sessions
+          mkdir -p shared/storage/framework/views
+          mkdir -p shared/storage/logs
+          chmod -R 775 shared/storage
+
+          # Create bootstrap/cache if not exists
+          mkdir -p "${RELEASE_DIR}/bootstrap/cache"
+          chmod -R 775 "${RELEASE_DIR}/bootstrap/cache"
+
           echo "🔒 Setting permissions"
           # Try with sudo first, fall back to regular commands if sudo not available
           if sudo -n true 2>/dev/null; then
             sudo chown -R www-data:www-data "${RELEASE_DIR}"
+            sudo chown -R www-data:www-data shared/storage
             sudo find "${RELEASE_DIR}" -type f -exec chmod 644 {} \;
             sudo find "${RELEASE_DIR}" -type d -exec chmod 755 {} \;
             sudo chmod -R 775 shared/storage
+            sudo chmod -R 775 "${RELEASE_DIR}/bootstrap/cache"
           else
             echo "⚠️ sudo not available, setting permissions without sudo"
             find "${RELEASE_DIR}" -type f -exec chmod 644 {} \;
             find "${RELEASE_DIR}" -type d -exec chmod 755 {} \;
             chmod -R 775 shared/storage 2>/dev/null || true
+            chmod -R 775 "${RELEASE_DIR}/bootstrap/cache" 2>/dev/null || true
           fi
 
           echo "🗃️ Creating database backup"
@@ -200,6 +216,7 @@ jobs:
 
           echo "🔄 Running migrations"
           cd "${RELEASE_DIR}"
+          php artisan config:clear
           php artisan migrate --force
 
           echo "⚡ Atomic switch"
