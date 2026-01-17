@@ -75,6 +75,17 @@ jobs:
           set -e
           echo "🔍 Running pre-deploy checks..."
 
+          # Debug environment
+          echo "Runner user: $(whoami)"
+          echo "Internal path: ${{ secrets.PROD_PATH }}"
+
+          # Check if target path exists
+          if [ ! -d "${{ secrets.PROD_PATH }}" ]; then
+            echo "❌ Base path not found: ${{ secrets.PROD_PATH }}"
+            ls -ld /var/www/sistema-ventas-production 2>/dev/null || echo "Base folder /var/www/sistema-ventas-production also not found"
+            exit 1
+          fi
+
           AVAILABLE=$(df -BG ${{ secrets.PROD_PATH }} | awk 'NR==2 {print $4}' | sed 's/G//')
           if [ "$AVAILABLE" -lt 2 ]; then
             echo "❌ Insufficient disk space: ${AVAILABLE}GB"
@@ -82,14 +93,18 @@ jobs:
           fi
           echo "✅ Disk space: ${AVAILABLE}GB"
 
+          echo "Checking shared directory at: ${{ secrets.PROD_PATH }}/shared"
           if [ ! -d "${{ secrets.PROD_PATH }}/shared" ]; then
             echo "❌ Shared directory not found"
+            echo "Listing ${{ secrets.PROD_PATH }}:"
+            ls -la "${{ secrets.PROD_PATH }}"
             exit 1
           fi
           echo "✅ Shared directory exists"
 
           if [ ! -f "${{ secrets.PROD_PATH }}/shared/.env" ]; then
-            echo "❌ .env not found"
+            echo "❌ .env not found in ${{ secrets.PROD_PATH }}/shared"
+            ls -la "${{ secrets.PROD_PATH }}/shared"
             exit 1
           fi
           echo "✅ .env exists"
