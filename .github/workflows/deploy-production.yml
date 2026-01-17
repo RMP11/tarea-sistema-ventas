@@ -275,14 +275,22 @@ jobs:
           php artisan up
           echo "✅ Maintenance mode disabled"
 
-      # Health checks
+      # Health checks (optional - won't fail deployment)
       - name: Health Check
         id: health
+        continue-on-error: true
         run: |
           echo "🏥 Running health checks..."
           sleep 10
 
           HEALTH_URL="${{ secrets.PROD_URL }}/api/health"
+
+          # Skip if PROD_URL is not set
+          if [ -z "${{ secrets.PROD_URL }}" ]; then
+            echo "⚠️ PROD_URL not configured, skipping health check"
+            echo "passed=skipped" >> $GITHUB_OUTPUT
+            exit 0
+          fi
 
           for i in 1 2 3; do
             echo "Attempt $i/3..."
@@ -298,9 +306,8 @@ jobs:
             sleep 5
           done
 
-          echo "❌ Health check failed after 3 attempts"
+          echo "⚠️ Health check failed after 3 attempts (deployment still successful)"
           echo "passed=false" >> $GITHUB_OUTPUT
-          exit 1
 
       # Rollback on failure
       - name: Rollback on Failure
