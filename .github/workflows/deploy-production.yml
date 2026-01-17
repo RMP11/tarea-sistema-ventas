@@ -30,7 +30,7 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       (github.event.workflow_run.conclusion == 'success' && (github.event.workflow_run.head_branch == 'main' || github.event.workflow_run.head_branch == 'ci-dia4'))
 
-    # 🔒 REQUIRES MANUAL APPROVAL
+    # REQUIRES MANUAL APPROVAL
     environment: production
 
     steps:
@@ -74,14 +74,20 @@ jobs:
         run: |
           set -e
           echo "🔍 Running pre-deploy checks..."
+          echo "📁 PROD_PATH: ${{ secrets.PROD_PATH }}"
+
+          # Verify PROD_PATH is set
+          if [ -z "${{ secrets.PROD_PATH }}" ]; then
+            echo "❌ PROD_PATH secret is not configured"
+            exit 1
+          fi
 
           # Debug environment
           echo "Runner user: $(whoami)"
-          echo "Internal path: ${{ secrets.PROD_PATH }}"
 
-          # Check if target path exists
+          # Check if base directory exists
           if [ ! -d "${{ secrets.PROD_PATH }}" ]; then
-            echo "❌ Base path not found: ${{ secrets.PROD_PATH }}"
+            echo "❌ Production directory not found: ${{ secrets.PROD_PATH }}"
             ls -ld /var/www/sistema-ventas-production 2>/dev/null || echo "Base folder /var/www/sistema-ventas-production also not found"
             exit 1
           fi
@@ -93,18 +99,31 @@ jobs:
           fi
           echo "✅ Disk space: ${AVAILABLE}GB"
 
-          echo "Checking shared directory at: ${{ secrets.PROD_PATH }}/shared"
+          # Create shared directory structure if not exists
           if [ ! -d "${{ secrets.PROD_PATH }}/shared" ]; then
-            echo "❌ Shared directory not found"
-            echo "Listing ${{ secrets.PROD_PATH }}:"
-            ls -la "${{ secrets.PROD_PATH }}"
-            exit 1
+            echo "📁 Creating shared directory..."
+            sudo mkdir -p "${{ secrets.PROD_PATH }}/shared/storage/app/public"
+            sudo mkdir -p "${{ secrets.PROD_PATH }}/shared/storage/framework/cache"
+            sudo mkdir -p "${{ secrets.PROD_PATH }}/shared/storage/framework/sessions"
+            sudo mkdir -p "${{ secrets.PROD_PATH }}/shared/storage/framework/views"
+            sudo mkdir -p "${{ secrets.PROD_PATH }}/shared/storage/logs"
+            sudo chown -R www-data:www-data "${{ secrets.PROD_PATH }}/shared"
+            echo "✅ Shared directory created"
+          else
+            echo "✅ Shared directory exists"
           fi
-          echo "✅ Shared directory exists"
+
+          # Create releases directory if not exists
+          if [ ! -d "${{ secrets.PROD_PATH }}/releases" ]; then
+            echo "📁 Creating releases directory..."
+            sudo mkdir -p "${{ secrets.PROD_PATH }}/releases"
+            sudo chown -R www-data:www-data "${{ secrets.PROD_PATH }}/releases"
+            echo "✅ Releases directory created"
+          fi
 
           if [ ! -f "${{ secrets.PROD_PATH }}/shared/.env" ]; then
-            echo "❌ .env not found in ${{ secrets.PROD_PATH }}/shared"
-            ls -la "${{ secrets.PROD_PATH }}/shared"
+            echo "⚠️ Warning: .env not found in shared directory"
+            echo "Please create ${{ secrets.PROD_PATH }}/shared/.env with production settings"
             exit 1
           fi
           echo "✅ .env exists"
@@ -155,8 +174,6 @@ jobs:
           ln -sfn "$(pwd)/shared/.env" "${RELEASE_DIR}/.env"
 
           echo "🔒 Setting permissions"
-          # Assuming runner user has sudo access without password for these specific commands or global
-          # If runner user owns the files, sudo might not be needed for chown if group matches, but for www-data usually yes
           sudo chown -R www-data:www-data "${RELEASE_DIR}"
           sudo find "${RELEASE_DIR}" -type f -exec chmod 644 {} \;
           sudo find "${RELEASE_DIR}" -type d -exec chmod 755 {} \;
@@ -218,13 +235,13 @@ jobs:
             echo "Attempt $i/3..."
             RESPONSE=$(curl -s -w "\n%{http_code}" --max-time ${{ env.HEALTH_CHECK_TIMEOUT }} "$HEALTH_URL" || echo "000")
             HTTP_CODE=$(echo "$RESPONSE" | tail -1)
-            
+
             if [ "$HTTP_CODE" == "200" ]; then
               echo "✅ Health check passed"
               echo "passed=true" >> $GITHUB_OUTPUT
               exit 0
             fi
-            
+
             sleep 5
           done
 
@@ -255,13 +272,13 @@ jobs:
             echo "🔙 Rolling back to: ${PREVIOUS}"
             ln -sfn "$PREVIOUS" current.new
             mv -Tf current.new current
-            
+
             cd current
             php artisan up
-            
+
             sudo systemctl reload php8.4-fpm || sudo systemctl reload php8.2-fpm || true
             sudo nginx -s reload || true
-            
+
             echo "✅ Rollback complete"
           else
             echo "❌ No previous release for rollback"
