@@ -48,13 +48,13 @@ jobs:
             fi
           fi
           echo "release_tag=${RELEASE_TAG}" >> $GITHUB_OUTPUT
-          echo "Deploying release: ${RELEASE_TAG}"
+          echo "📦 Deploying release: ${RELEASE_TAG}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Display Deployment Info
         run: |
-          echo "## Staging Deployment" >> $GITHUB_STEP_SUMMARY
+          echo "## 🚀 Staging Deployment" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
@@ -72,31 +72,31 @@ jobs:
           port: ${{ secrets.STAGING_SSH_PORT }}
           script: |
             set -e
-            echo "Running pre-deploy checks..."
+            echo "🔍 Running pre-deploy checks..."
 
             # Check disk space
             AVAILABLE=$(df -BG ${{ secrets.STAGING_PATH }} | awk 'NR==2 {print $4}' | sed 's/G//')
             if [ "$AVAILABLE" -lt 2 ]; then
-              echo "Insufficient disk space: ${AVAILABLE}GB (need 2GB)"
+              echo "❌ Insufficient disk space: ${AVAILABLE}GB (need 2GB)"
               exit 1
             fi
-            echo "Disk space: ${AVAILABLE}GB available"
+            echo "✅ Disk space: ${AVAILABLE}GB available"
 
             # Check shared directory
             if [ ! -d "${{ secrets.STAGING_PATH }}/shared" ]; then
-              echo "Shared directory not found"
+              echo "❌ Shared directory not found"
               exit 1
             fi
-            echo "Shared directory exists"
+            echo "✅ Shared directory exists"
 
             # Check .env
             if [ ! -f "${{ secrets.STAGING_PATH }}/shared/.env" ]; then
-              echo ".env file not found"
+              echo "❌ .env file not found"
               exit 1
             fi
-            echo ".env file exists"
+            echo "✅ .env file exists"
 
-            echo "All pre-deploy checks passed"
+            echo "✅ All pre-deploy checks passed"
 
       # Deploy using script
       - name: Deploy Application
@@ -115,7 +115,7 @@ jobs:
             TIMESTAMP=$(date +%Y%m%d-%H%M%S)
             RELEASE_DIR="releases/${TIMESTAMP}"
 
-            echo "Downloading release: ${RELEASE_TAG}"
+            echo "📦 Downloading release: ${RELEASE_TAG}"
 
             # Download artifact
             ARTIFACT_NAME="sistema-ventas-${RELEASE_TAG}"
@@ -124,55 +124,55 @@ jobs:
             mkdir -p "/tmp/deploy-${TIMESTAMP}"
             curl -fsSL -o "/tmp/deploy-${TIMESTAMP}/${ARTIFACT_NAME}.tar.gz" "$DOWNLOAD_URL"
 
-            echo "Extracting to ${RELEASE_DIR}"
+            echo "📂 Extracting to ${RELEASE_DIR}"
             mkdir -p "${RELEASE_DIR}"
             tar -xzf "/tmp/deploy-${TIMESTAMP}/${ARTIFACT_NAME}.tar.gz" -C "${RELEASE_DIR}"
 
-            echo "Creating symlinks"
+            echo "🔗 Creating symlinks"
             rm -rf "${RELEASE_DIR}/storage"
             ln -sfn "$(pwd)/shared/storage" "${RELEASE_DIR}/storage"
             ln -sfn "$(pwd)/shared/.env" "${RELEASE_DIR}/.env"
 
-            echo "Setting permissions"
+            echo "🔒 Setting permissions"
             sudo chown -R www-data:www-data "${RELEASE_DIR}"
             sudo find "${RELEASE_DIR}" -type f -exec chmod 644 {} \;
             sudo find "${RELEASE_DIR}" -type d -exec chmod 755 {} \;
             sudo chmod -R 775 shared/storage
 
-            echo "Creating database backup"
+            echo "🗃️ Creating database backup"
             mkdir -p shared/database/backups
             if command -v pg_dump &> /dev/null; then
               source shared/.env
               PGPASSWORD="$DB_PASSWORD" pg_dump -h "$DB_HOST" -U "$DB_USERNAME" -Fc "$DB_DATABASE" > "shared/database/backups/pre-${TIMESTAMP}.sql" 2>/dev/null || echo "Backup skipped"
             fi
 
-            echo "Running migrations"
+            echo "🔄 Running migrations"
             cd "${RELEASE_DIR}"
             php artisan migrate --force
 
-            echo "Atomic switch"
+            echo "⚡ Atomic switch"
             cd ${{ secrets.STAGING_PATH }}
             ln -sfn "$(pwd)/${RELEASE_DIR}" current.new
             mv -Tf current.new current
 
-            echo "Reloading services"
+            echo "🔃 Reloading services"
             sudo systemctl reload php8.4-fpm || sudo systemctl reload php8.2-fpm || true
             sudo nginx -s reload || true
             sudo supervisorctl restart sistema-ventas-worker:* 2>/dev/null || true
 
-            echo "Cleanup"
+            echo "🧹 Cleanup"
             rm -rf "/tmp/deploy-${TIMESTAMP}"
 
             # Keep only last 3 releases
             cd releases
             ls -t | tail -n +4 | xargs -r rm -rf
 
-            echo "Deployment complete"
+            echo "✅ Deployment complete"
 
       # Health check
       - name: Health Check
         run: |
-          echo "Running health checks..."
+          echo "🏥 Running health checks..."
           sleep 5
 
           HEALTH_URL="${{ secrets.STAGING_URL }}/api/health"
@@ -184,14 +184,14 @@ jobs:
           echo "Response: ${BODY}"
 
           if [ "$HTTP_CODE" != "200" ]; then
-            echo "Health check failed!"
-            echo "## Health Check Failed" >> $GITHUB_STEP_SUMMARY
+            echo "❌ Health check failed!"
+            echo "## ❌ Health Check Failed" >> $GITHUB_STEP_SUMMARY
             echo "HTTP Status: ${HTTP_CODE}" >> $GITHUB_STEP_SUMMARY
             exit 1
           fi
 
-          echo "Health check passed"
-          echo "## Deployment Successful" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Health check passed"
+          echo "## ✅ Deployment Successful" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**URL:** ${{ secrets.STAGING_URL }}" >> $GITHUB_STEP_SUMMARY
 
@@ -209,12 +209,12 @@ jobs:
 
             PREVIOUS=$(ls -t releases | sed -n '2p')
             if [ -n "$PREVIOUS" ]; then
-              echo "Rolling back to: ${PREVIOUS}"
+              echo "🔙 Rolling back to: ${PREVIOUS}"
               ln -sfn "$(pwd)/releases/${PREVIOUS}" current.new
               mv -Tf current.new current
               sudo systemctl reload php8.4-fpm || sudo systemctl reload php8.2-fpm || true
               sudo nginx -s reload || true
-              echo "Rollback complete"
+              echo "✅ Rollback complete"
             else
-              echo "No previous release to rollback to"
+              echo "❌ No previous release to rollback to"
             fi
