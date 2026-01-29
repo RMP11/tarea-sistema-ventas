@@ -6,6 +6,7 @@ on:
     workflows: ["Build & Release"]
     types: [completed]
     branches: [main, ci-dia4]
+    branches: [main]
 
   # Manual trigger
   workflow_dispatch:
@@ -29,6 +30,10 @@ jobs:
     if: |
       github.event_name == 'workflow_dispatch' ||
       (github.event.workflow_run.conclusion == 'success' && (github.event.workflow_run.head_branch == 'main' || github.event.workflow_run.head_branch == 'ci-dia4'))
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
 
     # REQUIRES MANUAL APPROVAL
     environment: production
@@ -52,6 +57,7 @@ jobs:
           fi
           echo "release_tag=${RELEASE_TAG}" >> $GITHUB_OUTPUT
           echo "📦 Deploying release: ${RELEASE_TAG}"
+          echo "Deploying release: ${RELEASE_TAG}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
